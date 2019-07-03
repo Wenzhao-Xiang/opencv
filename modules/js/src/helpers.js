@@ -159,6 +159,14 @@ function Point(x, y) {
 
 Module['Point'] = Point;
 
+function Point3f(x, y, z) {
+    this.x = typeof(x) === 'undefined' ? 0 : x;
+    this.y = typeof(y) === 'undefined' ? 0 : y;
+    this.z = typeof(z) === 'undefined' ? 0 : z;
+}
+
+Module['Point3f'] = Point3f;
+
 function Size(width, height) {
     this.width = typeof(width) === 'undefined' ? 0 : width;
     this.height = typeof(height) === 'undefined' ? 0 : height;

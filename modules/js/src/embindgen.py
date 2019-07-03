@@ -128,6 +128,8 @@ dnn = {'dnn_Net': ['setInput', 'forward'],
        '': ['readNetFromCaffe', 'readNetFromTensorflow', 'readNetFromTorch', 'readNetFromDarknet',
             'readNetFromONNX', 'readNet', 'blobFromImage']}
 
+calib3d = {'': ['solvePnP']}
+
 features2d = {'Feature2D': ['detect', 'compute', 'detectAndCompute', 'descriptorSize', 'descriptorType', 'defaultNorm', 'empty', 'getDefaultName'],
               'BRISK': ['create', 'getDefaultName'],
               'ORB': ['create', 'setMaxFeatures', 'setScaleFactor', 'setNLevels', 'setEdgeThreshold', 'setFirstLevel', 'setWTA_K', 'setScoreType', 'setPatchSize', 'getFastThreshold', 'getDefaultName'],
@@ -180,7 +182,7 @@ def makeWhiteList(module_list):
                 wl[k] = m[k]
     return wl
 
-white_list = makeWhiteList([core, imgproc, objdetect, video, dnn, features2d, photo, aruco])
+white_list = makeWhiteList([core, imgproc, objdetect, video, dnn, calib3d, features2d, photo, aruco])
 
 # Features to be exported
 export_enums = False

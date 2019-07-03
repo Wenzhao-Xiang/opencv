@@ -492,6 +492,11 @@ EMSCRIPTEN_BINDINGS(binding_utils)
         .field("maxCount", &cv::TermCriteria::maxCount)
         .field("epsilon", &cv::TermCriteria::epsilon);
 
+    emscripten::value_object<cv::Point3f>("Point3f")
+        .field("x", &Point3f::x)
+        .field("y", &Point3f::y)
+        .field("z", &Point3f::z);
+
 #define EMSCRIPTEN_CV_SIZE(type) \
     emscripten::value_object<type>("#type") \
         .field("width", &type::width) \
