@@ -69,6 +69,7 @@
 //M*/
 
 #include <emscripten/bind.h>
+#include <wasm_simd128.h>
 
 @INCLUDES@
 #include "../../../modules/core/src/parallel_impl.hpp"
@@ -425,6 +426,15 @@ namespace binding_utils
         cv::hal::test_hal_intrin_float64();
     }
 #endif
+
+    float try_simd() {
+        __f32x4 vec1 = wasm_f32x4_make(56.1,22.4,88.99,123.123);
+        __f32x4 vec2 = wasm_f32x4_make(125.7,45.1,78.1,75.456);
+        __f32x4 vec3 = wasm_f32x4_add(vec1, vec2);
+        float x[4] = {0};
+        wasm_v128_store(x, vec3);
+        return *(x+3);
+    }
 }
 
 EMSCRIPTEN_BINDINGS(binding_utils)
@@ -677,6 +687,7 @@ EMSCRIPTEN_BINDINGS(binding_utils)
 #endif
 
     function("getBuildInformation", &binding_utils::getBuildInformation);
+    function("try_simd", &binding_utils::try_simd);
 
 #ifdef HAVE_PTHREADS_PF
     function("parallel_pthreads_set_threads_num", &cv::parallel_pthreads_set_threads_num);

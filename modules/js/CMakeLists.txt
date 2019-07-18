@@ -96,7 +96,7 @@ endif()
 
 set(COMPILE_FLAGS "")
 if(NOT CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-    set(COMPILE_FLAGS "${COMPILE_FLAGS} -Wno-missing-prototypes")
+    set(COMPILE_FLAGS "${COMPILE_FLAGS} -Wno-missing-prototypes -msimd128")
 endif()
 if(COMPILE_FLAGS)
     set_target_properties(${the_module} PROPERTIES COMPILE_FLAGS ${COMPILE_FLAGS})
