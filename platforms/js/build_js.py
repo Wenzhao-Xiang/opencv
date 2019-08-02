@@ -205,8 +205,8 @@ class Builder:
 if __name__ == "__main__":
     opencv_dir = os.path.abspath(os.path.join(SCRIPT_DIR, '../..'))
     emscripten_dir = None
-    if "EMSCRIPTEN" in os.environ:
-        emscripten_dir = os.environ["EMSCRIPTEN"]
+    if "EMSDK" in os.environ:
+        emscripten_dir = os.environ["EMSDK"]+"/upstream/emscripten"
 
     parser = argparse.ArgumentParser(description='Build OpenCV.js by Emscripten')
     parser.add_argument("build_dir", help="Building directory (and output)")
