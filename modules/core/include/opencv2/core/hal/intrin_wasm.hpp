@@ -894,36 +894,72 @@ OPENCV_HAL_IMPL_WASM_LOGIC_OP(v_int64x2))
 OPENCV_HAL_IMPL_WASM_LOGIC_OP(v_float32x4)
 OPENCV_HAL_IMPL_WASM_LOGIC_OP(v_float64x2)
 
-// inline v_float32x4 v_sqrt(const v_float32x4& x)
-// { return v_float32x4(wasm_f32x4_sqrt(x.val)); }
+inline v_float32x4 v_sqrt(const v_float32x4& x)
+{
+    #ifdef __wasm_unimplemented_simd128__ 
+    return v_float32x4(wasm_f32x4_sqrt(x.val));
+    #else
+    const int N = 4;
+    float buf[N];
+    v_store(buf, x);
+    for( int i = 0; i < N; i++ ) buf[i] = std::sqrt(buf[i]);
+    return v_float32x4(v_load(buf));
+    #endif
+}
 
-// inline v_float32x4 v_invsqrt(const v_float32x4& x)
-// {
-//     const v128_t _1_0 = wasm_f32x4_splat(1.0);
-//     return v_float32x4(wasm_f32x4_div(_1_0, wasm_f32x4_sqrt(x.val)));
-// }
+inline v_float32x4 v_invsqrt(const v_float32x4& x)
+{
+    #ifdef __wasm_unimplemented_simd128__ 
+    const v128_t _1_0 = wasm_f32x4_splat(1.0);
+    return v_float32x4(wasm_f32x4_div(_1_0, wasm_f32x4_sqrt(x.val)));
+    #else
+    const int N = 4;
+    float buf[N];
+    v_store(buf, x);
+    for( int i = 0; i < N; i++ ) buf[i] = 1.f/std::sqrt(buf[i]);
+    return v_float32x4(v_load(buf));
+    #endif
+}
 
-// inline v_float64x2 v_sqrt(const v_float64x2& x)
-// { return v_float64x2(wasm_f64x2_sqrt(x.val)); }
+inline v_float64x2 v_sqrt(const v_float64x2& x)
+{
+    #ifdef __wasm_unimplemented_simd128__ 
+    return v_float64x2(wasm_f64x2_sqrt(x.val));
+    #else
+    const int N = 2;
+    double buf[N];
+    v_store(buf, x);
+    for( int i = 0; i < N; i++ ) buf[i] = std::sqrt(buf[i]);
+    return v_float64x2(v_load(buf));
+    #endif
+}
 
-// inline v_float64x2 v_invsqrt(const v_float64x2& x)
-// {
-//     const v128_t _1_0 = (v128_t)(__f64x2){1.0, 1.0};
-//     return v_float64x2(wasm_f64x2_div(_1_0, wasm_f64x2_sqrt(x.val)));
-// }
+inline v_float64x2 v_invsqrt(const v_float64x2& x)
+{
+    #ifdef __wasm_unimplemented_simd128__ 
+    const v128_t _1_0 = wasm_f64x2_splat(1.0);
+    return v_float64x2(wasm_f64x2_div(_1_0, wasm_f64x2_sqrt(x.val)));
+    #else
+    const int N = 2;
+    double buf[N];
+    v_store(buf, x);
+    for( int i = 0; i < N; i++ ) buf[i] = 1.0/std::sqrt(buf[i]);
+    return v_float64x2(v_load(buf));
+    #endif
+}
 
-// #define OPENCV_HAL_IMPL_SSE_ABS_INT_FUNC(_Tpuvec, _Tpsvec, func, suffix, subWidth) \
-// inline _Tpuvec v_abs(const _Tpsvec& x) \
-// { return _Tpuvec(_mm_##func##_ep##suffix(x.val, _mm_sub_ep##subWidth(_mm_setzero_si128(), x.val))); }
+#define OPENCV_HAL_IMPL_WASM_ABS_INT_FUNC(_Tpuvec, _Tpsvec, suffix, zsuffix, shiftWidth) \
+inline _Tpuvec v_abs(const _Tpsvec& x) \
+{ \
+    v128_t s = wasm_##suffix##_shr(x.val, shiftWidth); \
+    v128_t f = wasm_##zsuffix##_shr(x.val, shiftWidth); \
+    return _Tpuvec(wasm_##zsuffix##_add(wasm_v128_xor(x.val, f), s)); \
+}
 
-// OPENCV_HAL_IMPL_SSE_ABS_INT_FUNC(v_uint8x16, v_int8x16, min, u8, i8)
-// OPENCV_HAL_IMPL_SSE_ABS_INT_FUNC(v_uint16x8, v_int16x8, max, i16, i16)
-// inline v_uint32x4 v_abs(const v_int32x4& x)
-// {
-//     __m128i s = _mm_srli_epi32(x.val, 31);
-//     __m128i f = _mm_srai_epi32(x.val, 31);
-//     return v_uint32x4(_mm_add_epi32(_mm_xor_si128(x.val, f), s));
-// }
+OPENCV_HAL_IMPL_WASM_ABS_INT_FUNC(v_uint8x16, v_int8x16, u8x16, i8x16, 7)
+OPENCV_HAL_IMPL_WASM_ABS_INT_FUNC(v_uint16x8, v_int16x8, u16x8, i16x8, 15)
+OPENCV_HAL_IMPL_WASM_ABS_INT_FUNC(v_uint32x4, v_int32x4, u32x4, i32x4, 31)
+
 inline v_float32x4 v_abs(const v_float32x4& x)
 { return v_float32x4(wasm_f32x4_abs(x.val)); }
 inline v_float64x2 v_abs(const v_float64x2& x)
@@ -937,87 +973,42 @@ inline _Tpvec func(const _Tpvec& a, const _Tpvec& b) \
     return _Tpvec(intrin(a.val, b.val)); \
 }
 
-// OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_uint8x16, v_min, _mm_min_epu8)
-// OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_uint8x16, v_max, _mm_max_epu8)
-// OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_int16x8, v_min, _mm_min_epi16)
-// OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_int16x8, v_max, _mm_max_epi16)
 OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_float32x4, v_min, wasm_f32x4_min)
 OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_float32x4, v_max, wasm_f32x4_max)
 OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_float64x2, v_min, wasm_f64x2_min)
 OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_float64x2, v_max, wasm_f64x2_max)
 
-// inline v_int8x16 v_min(const v_int8x16& a, const v_int8x16& b)
-// {
-// #if CV_SSE4_1
-//     return v_int8x16(_mm_min_epi8(a.val, b.val));
-// #else
-//     __m128i delta = _mm_set1_epi8((char)-128);
-//     return v_int8x16(_mm_xor_si128(delta, _mm_min_epu8(_mm_xor_si128(a.val, delta),
-//                                                        _mm_xor_si128(b.val, delta))));
-// #endif
-// }
-// inline v_int8x16 v_max(const v_int8x16& a, const v_int8x16& b)
-// {
-// #if CV_SSE4_1
-//     return v_int8x16(_mm_max_epi8(a.val, b.val));
-// #else
-//     __m128i delta = _mm_set1_epi8((char)-128);
-//     return v_int8x16(_mm_xor_si128(delta, _mm_max_epu8(_mm_xor_si128(a.val, delta),
-//                                                        _mm_xor_si128(b.val, delta))));
-// #endif
-// }
-// inline v_uint16x8 v_min(const v_uint16x8& a, const v_uint16x8& b)
-// {
-// #if CV_SSE4_1
-//     return v_uint16x8(_mm_min_epu16(a.val, b.val));
-// #else
-//     return v_uint16x8(_mm_subs_epu16(a.val, _mm_subs_epu16(a.val, b.val)));
-// #endif
-// }
-// inline v_uint16x8 v_max(const v_uint16x8& a, const v_uint16x8& b)
-// {
-// #if CV_SSE4_1
-//     return v_uint16x8(_mm_max_epu16(a.val, b.val));
-// #else
-//     return v_uint16x8(_mm_adds_epu16(_mm_subs_epu16(a.val, b.val), b.val));
-// #endif
-// }
-// inline v_uint32x4 v_min(const v_uint32x4& a, const v_uint32x4& b)
-// {
-// #if CV_SSE4_1
-//     return v_uint32x4(_mm_min_epu32(a.val, b.val));
-// #else
-//     __m128i delta = _mm_set1_epi32((int)0x80000000);
-//     __m128i mask = _mm_cmpgt_epi32(_mm_xor_si128(a.val, delta), _mm_xor_si128(b.val, delta));
-//     return v_uint32x4(v_select_si128(mask, b.val, a.val));
-// #endif
-// }
-// inline v_uint32x4 v_max(const v_uint32x4& a, const v_uint32x4& b)
-// {
-// #if CV_SSE4_1
-//     return v_uint32x4(_mm_max_epu32(a.val, b.val));
-// #else
-//     __m128i delta = _mm_set1_epi32((int)0x80000000);
-//     __m128i mask = _mm_cmpgt_epi32(_mm_xor_si128(a.val, delta), _mm_xor_si128(b.val, delta));
-//     return v_uint32x4(v_select_si128(mask, a.val, b.val));
-// #endif
-// }
-// inline v_int32x4 v_min(const v_int32x4& a, const v_int32x4& b)
-// {
-// #if CV_SSE4_1
-//     return v_int32x4(_mm_min_epi32(a.val, b.val));
-// #else
-//     return v_int32x4(v_select_si128(_mm_cmpgt_epi32(a.val, b.val), b.val, a.val));
-// #endif
-// }
-// inline v_int32x4 v_max(const v_int32x4& a, const v_int32x4& b)
-// {
-// #if CV_SSE4_1
-//     return v_int32x4(_mm_max_epi32(a.val, b.val));
-// #else
-//     return v_int32x4(v_select_si128(_mm_cmpgt_epi32(a.val, b.val), a.val, b.val));
-// #endif
-// }
+#define OPENCV_HAL_IMPL_WASM_MINMAX_S_INIT_FUNC(_Tpvec, suffix) \
+inline _Tpvec v_min(const _Tpvec& a, const _Tpvec& b) \
+{ \
+    return _Tpvec(wasm_v128_bitselect(b.val, a.val, wasm_##suffix##_gt(a.val, b.val))); \
+} \
+inline _Tpvec v_max(const _Tpvec& a, const _Tpvec& b) \
+{ \
+    return _Tpvec(wasm_v128_bitselect(a.val, b.val, wasm_##suffix##_gt(a.val, b.val))); \
+}
+
+OPENCV_HAL_IMPL_WASM_MINMAX_S_INIT_FUNC(v_int8x16, i8x16)
+OPENCV_HAL_IMPL_WASM_MINMAX_S_INIT_FUNC(v_int16x8, i16x8)
+OPENCV_HAL_IMPL_WASM_MINMAX_S_INIT_FUNC(v_int32x4, i32x4)
+
+#define OPENCV_HAL_IMPL_WASM_MINMAX_U_INIT_FUNC(_Tpvec, suffix, deltaNum) \
+inline _Tpvec v_min(const _Tpvec& a, const _Tpvec& b) \
+{ \
+    v128_t delta = wasm_##suffix##_splat(deltaNum); \
+    v128_t mask = wasm_##suffix##_gt(wasm_v128_xor(a.val, delta), wasm_v128_xor(b.val, delta)); \
+    return _Tpvec(wasm_v128_bitselect(b.val, a.val, mask)); \
+} \
+inline _Tpvec v_max(const _Tpvec& a, const _Tpvec& b) \
+{ \
+    v128_t delta = wasm_##suffix##_splat(deltaNum); \
+    v128_t mask = wasm_##suffix##_gt(wasm_v128_xor(a.val, delta), wasm_v128_xor(b.val, delta)); \
+    return _Tpvec(wasm_v128_bitselect(a.val, b.val, mask)); \
+}
+
+OPENCV_HAL_IMPL_WASM_MINMAX_U_INIT_FUNC(v_uint8x16, i8x16, (schar)0x80)
+OPENCV_HAL_IMPL_WASM_MINMAX_U_INIT_FUNC(v_uint16x8, i16x8, (short)0x8000)
+OPENCV_HAL_IMPL_WASM_MINMAX_U_INIT_FUNC(v_uint32x4, i32x4, (int)0x80000000)
 
 #define OPENCV_HAL_IMPL_WASM_INIT_CMP_OP(_Tpvec, suffix) \
 inline _Tpvec operator == (const _Tpvec& a, const _Tpvec& b) \
@@ -1051,10 +1042,18 @@ inline _Tpvec operator != (const _Tpvec& a, const _Tpvec& b) \
 OPENCV_HAL_IMPL_WASM_64BIT_CMP_OP(v_uint64x2, v_reinterpret_as_u64)
 OPENCV_HAL_IMPL_WASM_64BIT_CMP_OP(v_int64x2, v_reinterpret_as_s64)
 
-// inline v_float32x4 v_not_nan(const v_float32x4& a)
-// { return v_float32x4(_mm_cmpord_ps(a.val, a.val)); }
-// inline v_float64x2 v_not_nan(const v_float64x2& a)
-// { return v_float64x2(_mm_cmpord_pd(a.val, a.val)); }
+inline v_float32x4 v_not_nan(const v_float32x4& a)
+{
+    v128_t z = wasm_u32x4_splat(0x7fffffff);
+    v128_t t = wasm_u32x4_splat(0x7f800000);
+    return v_float32x4(wasm_u32x4_lt(wasm_v128_and(a.val, z), t));
+}
+inline v_float64x2 v_not_nan(const v_float64x2& a)
+{
+    v128_t z = wasm_u64x2_splat(0x7fffffffffffffff);
+    v128_t t = wasm_u64x2_splat(0x7ff0000000000000);
+    return v_float64x2(wasm_u64x2_lt(wasm_v128_and(a.val, z), t));
+}
 
 OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_uint8x16, v_add_wrap, wasm_i8x16_add)
 OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_int8x16, v_add_wrap, wasm_i8x16_add)
