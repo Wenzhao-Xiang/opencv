@@ -1301,117 +1301,94 @@ OPENCV_HAL_IMPL_WASM_SHIFT_OP(v_uint16x8, v_int16x8, i16x8, u16x8)
 OPENCV_HAL_IMPL_WASM_SHIFT_OP(v_uint32x4, v_int32x4, i32x4, u32x4)
 OPENCV_HAL_IMPL_WASM_SHIFT_OP(v_uint64x2, v_int64x2, i64x4, u64x4)
 
-// namespace hal_sse_internal
-// {
-//     template <int imm,
-//         bool is_invalid = ((imm < 0) || (imm > 16)),
-//         bool is_first = (imm == 0),
-//         bool is_half = (imm == 8),
-//         bool is_second = (imm == 16),
-//         bool is_other = (((imm > 0) && (imm < 8)) || ((imm > 8) && (imm < 16)))>
-//     class v_sse_palignr_u8_class;
+namespace hal_wasm_internal
+{
+    template <int imm,
+        bool is_invalid = ((imm < 0) || (imm > 16)),
+        bool is_first = (imm == 0),
+        bool is_second = (imm == 16),
+        bool is_other = (((imm > 0) && (imm < 16)))>
+    class v_wasm_palignr_u8_class;
 
-//     template <int imm>
-//     class v_sse_palignr_u8_class<imm, true, false, false, false, false>;
+    template <int imm>
+    class v_wasm_palignr_u8_class<imm, true, false, false, false>;
 
-//     template <int imm>
-//     class v_sse_palignr_u8_class<imm, false, true, false, false, false>
-//     {
-//     public:
-//         inline __m128i operator()(const __m128i& a, const __m128i&) const
-//         {
-//             return a;
-//         }
-//     };
+    template <int imm>
+    class v_wasm_palignr_u8_class<imm, false, true, false, false>
+    {
+    public:
+        inline v128_t operator()(const v128_t& a, const v128_t&) const
+        {
+            return a;
+        }
+    };
 
-//     template <int imm>
-//     class v_sse_palignr_u8_class<imm, false, false, true, false, false>
-//     {
-//     public:
-//         inline __m128i operator()(const __m128i& a, const __m128i& b) const
-//         {
-//             return _mm_unpacklo_epi64(_mm_unpackhi_epi64(a, a), b);
-//         }
-//     };
+    template <int imm>
+    class v_wasm_palignr_u8_class<imm, false, false, true, false>
+    {
+    public:
+        inline v128_t operator()(const v128_t&, const v128_t& b) const
+        {
+            return b;
+        }
+    };
 
-//     template <int imm>
-//     class v_sse_palignr_u8_class<imm, false, false, false, true, false>
-//     {
-//     public:
-//         inline __m128i operator()(const __m128i&, const __m128i& b) const
-//         {
-//             return b;
-//         }
-//     };
+    template <int imm>
+    class v_wasm_palignr_u8_class<imm, false, false, false, true>
+    {
+    public:
+        inline v128_t operator()(const v128_t& a, const v128_t& b) const
+        {
+            enum { imm2 = (sizeof(v128_t) - imm) };
+            return wasm_v8x16_shuffle(a, b, 
+                                    imm, imm+1, imm+2, imm+3,
+                                    imm+4, imm+5, imm+6, imm+7,
+                                    imm+8, imm+9, imm+10, imm+11,
+                                    imm+12, imm+13, imm+14, imm+15);
+        }
+    };
 
-//     template <int imm>
-//     class v_sse_palignr_u8_class<imm, false, false, false, false, true>
-//     {
-// #if CV_SSSE3
-//     public:
-//         inline __m128i operator()(const __m128i& a, const __m128i& b) const
-//         {
-//             return _mm_alignr_epi8(b, a, imm);
-//         }
-// #else
-//     public:
-//         inline __m128i operator()(const __m128i& a, const __m128i& b) const
-//         {
-//             enum { imm2 = (sizeof(__m128i) - imm) };
-//             return _mm_or_si128(_mm_srli_si128(a, imm), _mm_slli_si128(b, imm2));
-//         }
-// #endif
-//     };
+    template <int imm>
+    inline v128_t v_wasm_palignr_u8(const v128_t& a, const v128_t& b)
+    {
+        CV_StaticAssert((imm >= 0) && (imm <= 16), "Invalid imm for v_wasm_palignr_u8.");
+        return v_wasm_palignr_u8_class<imm>()(a, b);
+    }
+}
 
-//     template <int imm>
-//     inline __m128i v_sse_palignr_u8(const __m128i& a, const __m128i& b)
-//     {
-//         CV_StaticAssert((imm >= 0) && (imm <= 16), "Invalid imm for v_sse_palignr_u8.");
-//         return v_sse_palignr_u8_class<imm>()(a, b);
-//     }
-// }
+template<int imm, typename _Tpvec>
+inline _Tpvec v_rotate_right(const _Tpvec &a)
+{
+    using namespace hal_wasm_internal;
+    enum { imm2 = (imm * sizeof(typename _Tpvec::lane_type)) };
+    v128_t z = wasm_i8x16_splat(0);
+    return _Tpvec(v_wasm_palignr_u8<imm2>(a.val, z));
+}
 
-// template<int imm, typename _Tpvec>
-// inline _Tpvec v_rotate_right(const _Tpvec &a)
-// {
-//     using namespace hal_sse_internal;
-//     enum { imm2 = (imm * sizeof(typename _Tpvec::lane_type)) };
-//     return _Tpvec(v_sse_reinterpret_as<typename _Tpvec::vector_type>(
-//         _mm_srli_si128(
-//             v_sse_reinterpret_as<__m128i>(a.val), imm2)));
-// }
+template<int imm, typename _Tpvec>
+inline _Tpvec v_rotate_left(const _Tpvec &a)
+{
+    using namespace hal_wasm_internal;
+    enum { imm2 = ((_Tpvec::nlanes - imm) * sizeof(typename _Tpvec::lane_type)) };
+    v128_t z = wasm_i8x16_splat(0);
+    return _Tpvec(v_wasm_palignr_u8<imm2>(z, a.val));
+}
 
-// template<int imm, typename _Tpvec>
-// inline _Tpvec v_rotate_left(const _Tpvec &a)
-// {
-//     using namespace hal_sse_internal;
-//     enum { imm2 = (imm * sizeof(typename _Tpvec::lane_type)) };
-//     return _Tpvec(v_sse_reinterpret_as<typename _Tpvec::vector_type>(
-//         _mm_slli_si128(
-//             v_sse_reinterpret_as<__m128i>(a.val), imm2)));
-// }
+template<int imm, typename _Tpvec>
+inline _Tpvec v_rotate_right(const _Tpvec &a, const _Tpvec &b)
+{
+    using namespace hal_wasm_internal;
+    enum { imm2 = (imm * sizeof(typename _Tpvec::lane_type)) };
+    return _Tpvec(v_wasm_palignr_u8<imm2>(a.val, b.val));
+}
 
-// template<int imm, typename _Tpvec>
-// inline _Tpvec v_rotate_right(const _Tpvec &a, const _Tpvec &b)
-// {
-//     using namespace hal_sse_internal;
-//     enum { imm2 = (imm * sizeof(typename _Tpvec::lane_type)) };
-//     return _Tpvec(v_sse_reinterpret_as<typename _Tpvec::vector_type>(
-//         v_sse_palignr_u8<imm2>(
-//             v_sse_reinterpret_as<__m128i>(a.val),
-//             v_sse_reinterpret_as<__m128i>(b.val))));
-// }
-
-// template<int imm, typename _Tpvec>
-// inline _Tpvec v_rotate_left(const _Tpvec &a, const _Tpvec &b)
-// {
-//     using namespace hal_sse_internal;
-//     enum { imm2 = ((_Tpvec::nlanes - imm) * sizeof(typename _Tpvec::lane_type)) };
-//     return _Tpvec(v_sse_reinterpret_as<typename _Tpvec::vector_type>(
-//         v_sse_palignr_u8<imm2>(
-//             v_sse_reinterpret_as<__m128i>(b.val),
-//             v_sse_reinterpret_as<__m128i>(a.val))));
-// }
+template<int imm, typename _Tpvec>
+inline _Tpvec v_rotate_left(const _Tpvec &a, const _Tpvec &b)
+{
+    using namespace hal_wasm_internal;
+    enum { imm2 = ((_Tpvec::nlanes - imm) * sizeof(typename _Tpvec::lane_type)) };
+    return _Tpvec(v_wasm_palignr_u8<imm2>(b.val, a.val));
+}
 
 #define OPENCV_HAL_IMPL_WASM_LOADSTORE_INT_OP(_Tpvec, _Tp) \
 inline _Tpvec v_load(const _Tp* ptr) \
@@ -1775,11 +1752,11 @@ OPENCV_HAL_IMPL_WASM_UNPACKS(v_int32x4, i32x4)
 OPENCV_HAL_IMPL_WASM_UNPACKS(v_float32x4, i32x4)
 OPENCV_HAL_IMPL_WASM_UNPACKS(v_float64x2, i64x2)
 
-// template<int s, typename _Tpvec>
-// inline _Tpvec v_extract(const _Tpvec& a, const _Tpvec& b)
-// {
-//     return v_rotate_right<s>(a, b);
-// }
+template<int s, typename _Tpvec>
+inline _Tpvec v_extract(const _Tpvec& a, const _Tpvec& b)
+{
+    return v_rotate_right<s>(a, b);
+}
 
 inline v_int32x4 v_round(const v_float32x4& a)
 {
