@@ -1186,7 +1186,7 @@ inline void v_store_aligned(_Tp* ptr, const _Tpvec& a) \
 { wasm_v128_store(ptr, a.val); } \
 inline void v_store_aligned_nocache(_Tp* ptr, const _Tpvec& a) \
 { wasm_v128_store(ptr, a.val); } \
-inline void v_store(_Tp* ptr, const _Tpvec& a, hal::StoreMode mode) \
+inline void v_store(_Tp* ptr, const _Tpvec& a, hal::StoreMode /*mode*/) \
 { \
     wasm_v128_store(ptr, a.val); \
 } \
@@ -1404,7 +1404,7 @@ inline int v_signmask(const _Tpvec& a) \
     wasm_v128_store(p, a.val); \
     int mask = 0; \
     for( int i = 0; i < _Tpvec::nlanes; ++i) \
-        mask |= int(p[i] < 0) << i; \
+        mask |= (V_TypeTraits<scalarType>::reinterpret_int(p[i]) < 0) << i; \
     return mask; \
 } \
 inline bool v_check_all(const _Tpvec& a) \
@@ -1418,8 +1418,21 @@ OPENCV_HAL_IMPL_WASM_CHECK_SIGNS(v_uint16x8, i16x8, short)
 OPENCV_HAL_IMPL_WASM_CHECK_SIGNS(v_int16x8, i16x8, short)
 OPENCV_HAL_IMPL_WASM_CHECK_SIGNS(v_uint32x4, i32x4, int)
 OPENCV_HAL_IMPL_WASM_CHECK_SIGNS(v_int32x4, i32x4, int)
-OPENCV_HAL_IMPL_WASM_CHECK_SIGNS(v_float32x4, f32x4, float)
-OPENCV_HAL_IMPL_WASM_CHECK_SIGNS(v_float64x2, f64x2, double)
+OPENCV_HAL_IMPL_WASM_CHECK_SIGNS(v_float32x4, i32x4, float)
+
+inline int v_signmask(const v_float64x2& a)
+{
+    double p[2];
+    wasm_v128_store(p, a.val);
+    int mask = 0;
+    for( int i = 0; i < 2; ++i)
+        mask |= (V_TypeTraits<double>::reinterpret_int(p[i]) < 0) << i;
+    return mask;
+}
+inline bool v_check_all(const v_float64x2& a)
+{ return wasm_i8x16_all_true((__i64x2)(a.val) < (__i64x2)(wasm_i64x2_splat(0))); }
+inline bool v_check_any(const v_float64x2& a)
+{ return wasm_i8x16_any_true((__i64x2)(a.val) < (__i64x2)(wasm_i64x2_splat(0)));; }
 
 #define OPENCV_HAL_IMPL_WASM_SELECT(_Tpvec) \
 inline _Tpvec v_select(const _Tpvec& mask, const _Tpvec& a, const _Tpvec& b) \
@@ -1767,7 +1780,7 @@ inline void v_load_deinterleave(const uint64 *ptr, v_uint64x2& a,
 // store interleave
 
 inline void v_store_interleave( uchar* ptr, const v_uint8x16& a, const v_uint8x16& b,
-                                hal::StoreMode mode = hal::STORE_UNALIGNED)
+                                hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     v128_t v0 = wasm_unpacklo_i8x16(a.val, b.val);
     v128_t v1 = wasm_unpackhi_i8x16(a.val, b.val);
@@ -1777,7 +1790,7 @@ inline void v_store_interleave( uchar* ptr, const v_uint8x16& a, const v_uint8x1
 }
 
 inline void v_store_interleave( uchar* ptr, const v_uint8x16& a, const v_uint8x16& b,
-                                const v_uint8x16& c, hal::StoreMode mode = hal::STORE_UNALIGNED)
+                                const v_uint8x16& c, hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     v128_t t00 = wasm_v8x16_shuffle(a.val, b.val, 0,16,0,1,17,0,2,18,0,3,19,0,4,20,0,5);
     v128_t t01 = wasm_v8x16_shuffle(a.val, b.val, 21,0,6,22,0,7,23,0,8,24,0,9,25,0,10,26);
@@ -1794,7 +1807,7 @@ inline void v_store_interleave( uchar* ptr, const v_uint8x16& a, const v_uint8x1
 
 inline void v_store_interleave( uchar* ptr, const v_uint8x16& a, const v_uint8x16& b,
                                 const v_uint8x16& c, const v_uint8x16& d,
-                                hal::StoreMode mode = hal::STORE_UNALIGNED)
+                                hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     // a0 a1 a2 a3 ....
     // b0 b1 b2 b3 ....
@@ -1817,7 +1830,7 @@ inline void v_store_interleave( uchar* ptr, const v_uint8x16& a, const v_uint8x1
 }
 
 inline void v_store_interleave( ushort* ptr, const v_uint16x8& a, const v_uint16x8& b,
-                                hal::StoreMode mode = hal::STORE_UNALIGNED)
+                                hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     v128_t v0 = wasm_unpacklo_i16x8(a.val, b.val);
     v128_t v1 = wasm_unpackhi_i16x8(a.val, b.val);
@@ -1828,7 +1841,7 @@ inline void v_store_interleave( ushort* ptr, const v_uint16x8& a, const v_uint16
 
 inline void v_store_interleave( ushort* ptr, const v_uint16x8& a,
                                 const v_uint16x8& b, const v_uint16x8& c,
-                                hal::StoreMode mode = hal::STORE_UNALIGNED)
+                                hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     v128_t t00 = wasm_v8x16_shuffle(a.val, b.val, 0,1,16,17,0,0,2,3,18,19,0,0,4,5,20,21);
     v128_t t01 = wasm_v8x16_shuffle(a.val, b.val, 0,0,6,7,22,23,0,0,8,9,24,25,0,0,10,11);
@@ -1845,7 +1858,7 @@ inline void v_store_interleave( ushort* ptr, const v_uint16x8& a,
 
 inline void v_store_interleave( ushort* ptr, const v_uint16x8& a, const v_uint16x8& b,
                                 const v_uint16x8& c, const v_uint16x8& d,
-                                hal::StoreMode mode = hal::STORE_UNALIGNED)
+                                hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     // a0 a1 a2 a3 ....
     // b0 b1 b2 b3 ....
@@ -1868,7 +1881,7 @@ inline void v_store_interleave( ushort* ptr, const v_uint16x8& a, const v_uint16
 }
 
 inline void v_store_interleave( unsigned* ptr, const v_uint32x4& a, const v_uint32x4& b,
-                                hal::StoreMode mode = hal::STORE_UNALIGNED)
+                                hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     v128_t v0 = wasm_unpacklo_i32x4(a.val, b.val);
     v128_t v1 = wasm_unpackhi_i32x4(a.val, b.val);
@@ -1878,7 +1891,7 @@ inline void v_store_interleave( unsigned* ptr, const v_uint32x4& a, const v_uint
 }
 
 inline void v_store_interleave( unsigned* ptr, const v_uint32x4& a, const v_uint32x4& b,
-                                const v_uint32x4& c, hal::StoreMode mode = hal::STORE_UNALIGNED)
+                                const v_uint32x4& c, hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     v128_t t00 = wasm_v8x16_shuffle(a.val, b.val, 0,1,2,3,16,17,18,19,0,0,0,0,4,5,6,7);
     v128_t t01 = wasm_v8x16_shuffle(a.val, b.val, 20,21,22,23,0,0,0,0,8,9,10,11,24,25,26,27);
@@ -1895,7 +1908,7 @@ inline void v_store_interleave( unsigned* ptr, const v_uint32x4& a, const v_uint
 
 inline void v_store_interleave(unsigned* ptr, const v_uint32x4& a, const v_uint32x4& b,
                                const v_uint32x4& c, const v_uint32x4& d,
-                               hal::StoreMode mode = hal::STORE_UNALIGNED)
+                               hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     v_uint32x4 v0, v1, v2, v3;
     v_transpose4x4(a, b, c, d, v0, v1, v2, v3);
@@ -1908,7 +1921,7 @@ inline void v_store_interleave(unsigned* ptr, const v_uint32x4& a, const v_uint3
 
 // 2-channel, float only
 inline void v_store_interleave(float* ptr, const v_float32x4& a, const v_float32x4& b,
-                               hal::StoreMode mode = hal::STORE_UNALIGNED)
+                               hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     v128_t v0 = wasm_unpacklo_i32x4(a.val, b.val);
     v128_t v1 = wasm_unpackhi_i32x4(a.val, b.val);
@@ -1918,7 +1931,7 @@ inline void v_store_interleave(float* ptr, const v_float32x4& a, const v_float32
 }
 
 inline void v_store_interleave(float* ptr, const v_float32x4& a, const v_float32x4& b,
-                               const v_float32x4& c, hal::StoreMode mode = hal::STORE_UNALIGNED)
+                               const v_float32x4& c, hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     v128_t t00 = wasm_v8x16_shuffle(a.val, b.val, 0,1,2,3,16,17,18,19,0,0,0,0,4,5,6,7);
     v128_t t01 = wasm_v8x16_shuffle(a.val, b.val, 20,21,22,23,0,0,0,0,8,9,10,11,24,25,26,27);
@@ -1935,7 +1948,7 @@ inline void v_store_interleave(float* ptr, const v_float32x4& a, const v_float32
 
 inline void v_store_interleave(float* ptr, const v_float32x4& a, const v_float32x4& b,
                                const v_float32x4& c, const v_float32x4& d,
-                               hal::StoreMode mode = hal::STORE_UNALIGNED)
+                               hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     v_float32x4 v0, v1, v2, v3;
     v_transpose4x4(a, b, c, d, v0, v1, v2, v3);
@@ -1947,7 +1960,7 @@ inline void v_store_interleave(float* ptr, const v_float32x4& a, const v_float32
 }
 
 inline void v_store_interleave(uint64 *ptr, const v_uint64x2& a, const v_uint64x2& b,
-                               hal::StoreMode mode = hal::STORE_UNALIGNED)
+                               hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     v128_t v0 = wasm_unpacklo_i64x2(a.val, b.val);
     v128_t v1 = wasm_unpackhi_i64x2(a.val, b.val);
@@ -1957,7 +1970,7 @@ inline void v_store_interleave(uint64 *ptr, const v_uint64x2& a, const v_uint64x
 }
 
 inline void v_store_interleave(uint64 *ptr, const v_uint64x2& a, const v_uint64x2& b,
-                               const v_uint64x2& c, hal::StoreMode mode = hal::STORE_UNALIGNED)
+                               const v_uint64x2& c, hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     v128_t v0 = wasm_v8x16_shuffle(a.val, b.val, 0,1,2,3,4,5,6,7,16,17,18,19,20,21,22,23);
     v128_t v1 = wasm_v8x16_shuffle(a.val, c.val, 16,17,18,19,20,21,22,23,8,9,10,11,12,13,14,15);
@@ -1970,7 +1983,7 @@ inline void v_store_interleave(uint64 *ptr, const v_uint64x2& a, const v_uint64x
 
 inline void v_store_interleave(uint64 *ptr, const v_uint64x2& a, const v_uint64x2& b,
                                const v_uint64x2& c, const v_uint64x2& d,
-                               hal::StoreMode mode = hal::STORE_UNALIGNED)
+                               hal::StoreMode /*mode*/ = hal::STORE_UNALIGNED)
 {
     v128_t v0 = wasm_unpacklo_i64x2(a.val, b.val);
     v128_t v1 = wasm_unpacklo_i64x2(c.val, d.val);
