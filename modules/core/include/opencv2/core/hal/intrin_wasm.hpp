@@ -45,13 +45,15 @@
 #ifndef OPENCV_HAL_WASM_HPP
 #define OPENCV_HAL_WASM_HPP
 
+#define __wasm_unimplemented_simd128__
+
 #include <algorithm>
 #include <wasm_simd128.h>
 #include "opencv2/core/utility.hpp"
 
 #define CV_SIMD128 1
-#define CV_SIMD128_64F 0
-#define CV_SIMD128_FP16 0  // no native operations with FP16 type.
+#define CV_SIMD128_64F 1
+#define CV_SIMD128_FP16 1  // no native operations with FP16 type.
 
 namespace cv
 {
@@ -809,8 +811,17 @@ OPENCV_HAL_IMPL_WASM_ABS_INT_FUNC(v_uint32x4, v_int32x4, u32x4, i32x4, 31)
 
 inline v_float32x4 v_abs(const v_float32x4& x)
 { return v_float32x4(wasm_f32x4_abs(x.val)); }
+// inline v_float64x2 v_abs(const v_float64x2& x)
+// { return v_float64x2(wasm_f64x2_abs(x.val)); }
 inline v_float64x2 v_abs(const v_float64x2& x)
-{ return v_float64x2(wasm_f64x2_abs(x.val)); }
+{
+    double a[2];
+    wasm_v128_store(a, x.val);
+    for (int i=0; i<2; ++i) {
+        a[i] = std::abs(a[i]);
+    }
+    return v_float64x2(wasm_v128_load(a));
+}
 
 // TODO: exp, log, sin, cos
 
@@ -822,8 +833,23 @@ inline _Tpvec func(const _Tpvec& a, const _Tpvec& b) \
 
 OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_float32x4, v_min, wasm_f32x4_min)
 OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_float32x4, v_max, wasm_f32x4_max)
-OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_float64x2, v_min, wasm_f64x2_min)
-OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_float64x2, v_max, wasm_f64x2_max)
+// OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_float64x2, v_min, wasm_f64x2_min)
+// OPENCV_HAL_IMPL_WASM_BIN_FUNC(v_float64x2, v_max, wasm_f64x2_max)
+
+#define OPENCV_HAL_IMPL_WASM_MINMAX_64f_FUNC(func, intrin) \
+inline v_float64x2 func(const v_float64x2& a, const v_float64x2& b) \
+{ \
+    double c[2], d[2]; \
+    wasm_v128_store(c, a.val); \
+    wasm_v128_store(d, b.val); \
+    for (int i=0; i<2; ++i) { \
+        c[i] = intrin(c[i], d[i]); \
+    } \
+    return v_float64x2(wasm_v128_load(c)); \
+}
+
+OPENCV_HAL_IMPL_WASM_MINMAX_64f_FUNC(v_min, std::min)
+OPENCV_HAL_IMPL_WASM_MINMAX_64f_FUNC(v_max, std::max)
 
 #define OPENCV_HAL_IMPL_WASM_MINMAX_S_INIT_FUNC(_Tpvec, suffix) \
 inline _Tpvec v_min(const _Tpvec& a, const _Tpvec& b) \
