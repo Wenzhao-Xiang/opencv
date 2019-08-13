@@ -55,6 +55,8 @@
 #define OPENCV_HAL_NOP(a) (a)
 #define OPENCV_HAL_1ST(a, b) (a)
 
+#define CV_WASM 1
+
 // unlike HAL API, which is in cv::hal,
 // we put intrinsics into cv namespace to make its
 // access from within opencv code more accessible
@@ -137,9 +139,10 @@ using namespace CV_CPU_OPTIMIZATION_HAL_NAMESPACE;
 #   undef CV_NEON
 #   undef CV_VSX
 #   undef CV_FP16
+#   undef CV_WASM
 #endif
 
-#if CV_SSE2 || CV_NEON || CV_VSX
+#if CV_SSE2 || CV_NEON || CV_VSX || CV_WASM
 #define CV__SIMD_FORWARD 128
 #include "opencv2/core/hal/intrin_forward.hpp"
 #endif

@@ -176,6 +176,8 @@ class Builder:
             flags += "-s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4 "
         else:
             flags += "-s USE_PTHREADS=0 "
+        if self.options.simd128:
+            flags += "-msimd128 "
         if self.options.enable_exception:
             flags += "-s DISABLE_EXCEPTION_CATCHING=0 "
         if self.options.simd:

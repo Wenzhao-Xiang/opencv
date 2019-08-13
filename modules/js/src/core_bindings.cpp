@@ -69,7 +69,6 @@
 //M*/
 
 #include <emscripten/bind.h>
-#include <wasm_simd128.h>
 
 @INCLUDES@
 #include "../../../modules/core/src/parallel_impl.hpp"

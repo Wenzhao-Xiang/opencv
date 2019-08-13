@@ -30,6 +30,10 @@ using namespace std;
 using namespace cv;
 
 namespace {
+static const float atan2_p1 = 0.9997878412794807f*(float)(180/CV_PI);
+static const float atan2_p3 = -0.3258083974640975f*(float)(180/CV_PI);
+static const float atan2_p5 = 0.1555786518463281f*(float)(180/CV_PI);
+static const float atan2_p7 = -0.04432655554792128f*(float)(180/CV_PI);
 
 static const float atan2_p1 = 0.9997878412794807f*(float)(180/CV_PI);
 static const float atan2_p3 = -0.3258083974640975f*(float)(180/CV_PI);
