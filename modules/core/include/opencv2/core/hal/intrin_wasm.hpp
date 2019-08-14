@@ -50,6 +50,7 @@
 #include <algorithm>
 #include <wasm_simd128.h>
 #include "opencv2/core/utility.hpp"
+#include <iostream>
 
 #define CV_SIMD128 1
 #define CV_SIMD128_64F 1
@@ -419,124 +420,415 @@ OPENCV_HAL_IMPL_WASM_INITVEC(v_float32x4, float, f32, f32x4, float)
 OPENCV_HAL_IMPL_WASM_INITVEC(v_float64x2, double, f64, f64x2, double)
 
 //////////////// PACK ///////////////
-#define OPENCV_HAL_IMPL_C_PACK(_Tpvec, _Tp, _Tpnvec, _Tpn, pack_suffix, cast) \
-inline _Tpnvec v_##pack_suffix(const _Tpvec& a, const _Tpvec& b) \
-{ \
-    _Tp p[_Tpnvec::nlanes]; \
-    wasm_v128_store(p, a.val); \
-    wasm_v128_store(p+_Tpvec::nlanes, b.val); \
-    _Tpn c[_Tpnvec::nlanes]; \
-    for( int i = 0; i < _Tpnvec::nlanes; i++ ) \
-    { \
-        c[i] = cast<_Tpn>(p[i]); \
-    } \
-    return _Tpnvec(wasm_v128_load(c)); \
+inline v_uint8x16 v_pack(const v_uint16x8& a, const v_uint16x8& b)
+{
+    v128_t maxval = wasm_i16x8_splat(255);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, wasm_u16x8_gt(a.val, maxval));
+    v128_t b1 = wasm_v128_bitselect(maxval, b.val, wasm_u16x8_gt(b.val, maxval));
+    return v_uint8x16(wasm_v8x16_shuffle(a1, b1, 0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30));
+}
+inline v_int8x16 v_pack(const v_int16x8& a, const v_int16x8& b)
+{
+    v128_t maxval = wasm_i16x8_splat(127);
+    v128_t minval = wasm_i16x8_splat(-128);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, wasm_i16x8_gt(a.val, maxval));
+    v128_t b1 = wasm_v128_bitselect(maxval, b.val, wasm_i16x8_gt(b.val, maxval));
+    v128_t a2 = wasm_v128_bitselect(minval, a1, wasm_i16x8_lt(a1, minval));
+    v128_t b2 = wasm_v128_bitselect(minval, b1, wasm_i16x8_lt(b1, minval));
+    return v_int8x16(wasm_v8x16_shuffle(a2, b2, 0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30));
+}
+inline v_uint16x8 v_pack(const v_uint32x4& a, const v_uint32x4& b)
+{
+    v128_t maxval = wasm_i32x4_splat(65535);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, wasm_u32x4_gt(a.val, maxval));
+    v128_t b1 = wasm_v128_bitselect(maxval, b.val, wasm_u32x4_gt(b.val, maxval));
+    return v_uint16x8(wasm_v8x16_shuffle(a1, b1, 0,1,4,5,8,9,12,13,16,17,20,21,24,25,28,29));
+}
+inline v_int16x8 v_pack(const v_int32x4& a, const v_int32x4& b)
+{
+    v128_t maxval = wasm_i32x4_splat(32767);
+    v128_t minval = wasm_i32x4_splat(-32768);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, wasm_i32x4_gt(a.val, maxval));
+    v128_t b1 = wasm_v128_bitselect(maxval, b.val, wasm_i32x4_gt(b.val, maxval));
+    v128_t a2 = wasm_v128_bitselect(minval, a1, wasm_i32x4_lt(a1, minval));
+    v128_t b2 = wasm_v128_bitselect(minval, b1, wasm_i32x4_lt(b1, minval));
+    return v_int16x8(wasm_v8x16_shuffle(a2, b2, 0,1,4,5,8,9,12,13,16,17,20,21,24,25,28,29));
+}
+inline v_uint32x4 v_pack(const v_uint64x2& a, const v_uint64x2& b)
+{
+    return v_uint32x4(wasm_v8x16_shuffle(a.val, b.val, 0,1,2,3,8,9,10,11,16,17,18,19,24,25,26,27));
+}
+inline v_int32x4 v_pack(const v_int64x2& a, const v_int64x2& b)
+{
+    return v_int32x4(wasm_v8x16_shuffle(a.val, b.val, 0,1,2,3,8,9,10,11,16,17,18,19,24,25,26,27));
+}
+inline v_uint8x16 v_pack_u(const v_int16x8& a, const v_int16x8& b)
+{
+    v128_t maxval = wasm_i16x8_splat(255);
+    v128_t minval = wasm_i16x8_splat(0);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, wasm_i16x8_gt(a.val, maxval));
+    v128_t b1 = wasm_v128_bitselect(maxval, b.val, wasm_i16x8_gt(b.val, maxval));
+    v128_t a2 = wasm_v128_bitselect(minval, a1, wasm_i16x8_lt(a1, minval));
+    v128_t b2 = wasm_v128_bitselect(minval, b1, wasm_i16x8_lt(b1, minval));
+    return v_uint8x16(wasm_v8x16_shuffle(a2, b2, 0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30));
+}
+inline v_uint16x8 v_pack_u(const v_int32x4& a, const v_int32x4& b)
+{
+    v128_t maxval = wasm_i32x4_splat(65535);
+    v128_t minval = wasm_i32x4_splat(0);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, wasm_i32x4_gt(a.val, maxval));
+    v128_t b1 = wasm_v128_bitselect(maxval, b.val, wasm_i32x4_gt(b.val, maxval));
+    v128_t a2 = wasm_v128_bitselect(minval, a1, wasm_i32x4_lt(a1, minval));
+    v128_t b2 = wasm_v128_bitselect(minval, b1, wasm_i32x4_lt(b1, minval));
+    return v_uint16x8(wasm_v8x16_shuffle(a2, b2, 0,1,4,5,8,9,12,13,16,17,20,21,24,25,28,29));
 }
 
-OPENCV_HAL_IMPL_C_PACK(v_uint16x8, ushort, v_uint8x16, uchar, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_PACK(v_int16x8, short, v_int8x16, schar, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_PACK(v_uint32x4, unsigned, v_uint16x8, ushort, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_PACK(v_int32x4, int, v_int16x8, short, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_PACK(v_uint64x2, uint64, v_uint32x4, unsigned, pack, static_cast)
-OPENCV_HAL_IMPL_C_PACK(v_int64x2, int64, v_int32x4, int, pack, static_cast)
-OPENCV_HAL_IMPL_C_PACK(v_int16x8, short, v_uint8x16, uchar, pack_u, saturate_cast)
-OPENCV_HAL_IMPL_C_PACK(v_int32x4, int, v_uint16x8, ushort, pack_u, saturate_cast)
-
-#define OPENCV_HAL_IMPL_C_RSHR_PACK(_Tpvec, _Tp, _Tpnvec, _Tpn, pack_suffix, cast) \
-template<int n> inline _Tpnvec v_rshr_##pack_suffix(const _Tpvec& a, const _Tpvec& b) \
-{ \
-    _Tp p[_Tpnvec::nlanes]; \
-    wasm_v128_store(p, a.val); \
-    wasm_v128_store(p+_Tpvec::nlanes, b.val); \
-    _Tpn c[_Tpnvec::nlanes]; \
-    for( int i = 0; i < _Tpnvec::nlanes; i++ ) \
-    { \
-        c[i] = cast<_Tpn>((p[i] + ((_Tp)1 << (n - 1))) >> n); \
-    } \
-    return _Tpnvec(wasm_v128_load(c)); \
+template<int n>
+inline v_uint8x16 v_rshr_pack(const v_uint16x8& a, const v_uint16x8& b)
+{
+    v128_t delta = wasm_i16x8_splat(((short)1 << (n-1)));
+    v128_t a1 = wasm_u16x8_shr(wasm_i16x8_add(a.val, delta), n);
+    v128_t b1 = wasm_u16x8_shr(wasm_i16x8_add(b.val, delta), n);
+    v128_t maxval = wasm_i16x8_splat(255);
+    v128_t a2 = wasm_v128_bitselect(maxval, a1, wasm_u16x8_gt(a1, maxval));
+    v128_t b2 = wasm_v128_bitselect(maxval, b1, wasm_u16x8_gt(b1, maxval));
+    return v_uint8x16(wasm_v8x16_shuffle(a2, b2, 0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30));
+}
+template<int n>
+inline v_int8x16 v_rshr_pack(const v_int16x8& a, const v_int16x8& b)
+{
+    v128_t delta = wasm_i16x8_splat(((short)1 << (n-1)));
+    v128_t a1 = wasm_i16x8_shr(wasm_i16x8_add(a.val, delta), n);
+    v128_t b1 = wasm_i16x8_shr(wasm_i16x8_add(b.val, delta), n);
+    v128_t maxval = wasm_i16x8_splat(127);
+    v128_t minval = wasm_i16x8_splat(-128);
+    v128_t a2 = wasm_v128_bitselect(maxval, a1, wasm_i16x8_gt(a1, maxval));
+    v128_t b2 = wasm_v128_bitselect(maxval, b1, wasm_i16x8_gt(b1, maxval));
+    v128_t a3 = wasm_v128_bitselect(minval, a2, wasm_i16x8_lt(a1, minval));
+    v128_t b3 = wasm_v128_bitselect(minval, b2, wasm_i16x8_lt(b1, minval));
+    return v_int8x16(wasm_v8x16_shuffle(a3, b3, 0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30));
+}
+template<int n>
+inline v_uint16x8 v_rshr_pack(const v_uint32x4& a, const v_uint32x4& b)
+{
+    v128_t delta = wasm_i32x4_splat(((int)1 << (n-1)));
+    v128_t a1 = wasm_u32x4_shr(wasm_i32x4_add(a.val, delta), n);
+    v128_t b1 = wasm_u32x4_shr(wasm_i32x4_add(b.val, delta), n);
+    v128_t maxval = wasm_i32x4_splat(65535);
+    v128_t a2 = wasm_v128_bitselect(maxval, a1, wasm_u32x4_gt(a1, maxval));
+    v128_t b2 = wasm_v128_bitselect(maxval, b1, wasm_u32x4_gt(b1, maxval));
+    return v_uint16x8(wasm_v8x16_shuffle(a2, b2, 0,1,4,5,8,9,12,13,16,17,20,21,24,25,28,29));
+}
+template<int n>
+inline v_int16x8 v_rshr_pack(const v_int32x4& a, const v_int32x4& b)
+{
+    v128_t delta = wasm_i32x4_splat(((int)1 << (n-1)));
+    v128_t a1 = wasm_i32x4_shr(wasm_i32x4_add(a.val, delta), n);
+    v128_t b1 = wasm_i32x4_shr(wasm_i32x4_add(b.val, delta), n);
+    v128_t maxval = wasm_i32x4_splat(32767);
+    v128_t minval = wasm_i16x8_splat(-32768);
+    v128_t a2 = wasm_v128_bitselect(maxval, a1, wasm_i32x4_gt(a1, maxval));
+    v128_t b2 = wasm_v128_bitselect(maxval, b1, wasm_i32x4_gt(b1, maxval));
+    v128_t a3 = wasm_v128_bitselect(minval, a2, wasm_i32x4_lt(a1, minval));
+    v128_t b3 = wasm_v128_bitselect(minval, b2, wasm_i32x4_lt(b1, minval));
+    return v_int16x8(wasm_v8x16_shuffle(a3, b3, 0,1,4,5,8,9,12,13,16,17,20,21,24,25,28,29));
+}
+template<int n>
+inline v_uint32x4 v_rshr_pack(const v_uint64x2& a, const v_uint64x2& b)
+{
+    v128_t delta = wasm_i64x2_splat(((int64)1 << (n-1)));
+    v128_t a1 = wasm_u64x2_shr(wasm_i64x2_add(a.val, delta), n);
+    v128_t b1 = wasm_u64x2_shr(wasm_i64x2_add(b.val, delta), n);
+    return v_uint32x4(wasm_v8x16_shuffle(a1, b1, 0,1,2,3,8,9,10,11,16,17,18,19,24,25,26,27));
+}
+template<int n>
+inline v_int32x4 v_rshr_pack(const v_int64x2& a, const v_int64x2& b)
+{
+    v128_t delta = wasm_i64x2_splat(((int64)1 << (n-1)));
+    v128_t a1 = wasm_i64x2_shr(wasm_i64x2_add(a.val, delta), n);
+    v128_t b1 = wasm_i64x2_shr(wasm_i64x2_add(b.val, delta), n);
+    return v_int32x4(wasm_v8x16_shuffle(a1, b1, 0,1,2,3,8,9,10,11,16,17,18,19,24,25,26,27));
+}
+template<int n>
+inline v_uint8x16 v_rshr_pack_u(const v_int16x8& a, const v_int16x8& b)
+{
+    v128_t delta = wasm_i16x8_splat(((short)1 << (n-1)));
+    v128_t a1 = wasm_i16x8_shr(wasm_i16x8_add(a.val, delta), n);
+    v128_t b1 = wasm_i16x8_shr(wasm_i16x8_add(b.val, delta), n);
+    v128_t maxval = wasm_i16x8_splat(255);
+    v128_t minval = wasm_i16x8_splat(0);
+    v128_t a2 = wasm_v128_bitselect(maxval, a1, wasm_i16x8_gt(a1, maxval));
+    v128_t b2 = wasm_v128_bitselect(maxval, b1, wasm_i16x8_gt(b1, maxval));
+    v128_t a3 = wasm_v128_bitselect(minval, a2, wasm_i16x8_lt(a1, minval));
+    v128_t b3 = wasm_v128_bitselect(minval, b2, wasm_i16x8_lt(b1, minval));
+    return v_uint8x16(wasm_v8x16_shuffle(a3, b3, 0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30));
+}
+template<int n>
+inline v_uint16x8 v_rshr_pack_u(const v_int32x4& a, const v_int32x4& b)
+{
+    v128_t delta = wasm_i32x4_splat(((int)1 << (n-1)));
+    v128_t a1 = wasm_i32x4_shr(wasm_i32x4_add(a.val, delta), n);
+    v128_t b1 = wasm_i32x4_shr(wasm_i32x4_add(b.val, delta), n);
+    v128_t maxval = wasm_i32x4_splat(65535);
+    v128_t minval = wasm_i16x8_splat(0);
+    v128_t a2 = wasm_v128_bitselect(maxval, a1, wasm_i32x4_gt(a1, maxval));
+    v128_t b2 = wasm_v128_bitselect(maxval, b1, wasm_i32x4_gt(b1, maxval));
+    v128_t a3 = wasm_v128_bitselect(minval, a2, wasm_i32x4_lt(a1, minval));
+    v128_t b3 = wasm_v128_bitselect(minval, b2, wasm_i32x4_lt(b1, minval));
+    return v_uint16x8(wasm_v8x16_shuffle(a3, b3, 0,1,4,5,8,9,12,13,16,17,20,21,24,25,28,29));
 }
 
-OPENCV_HAL_IMPL_C_RSHR_PACK(v_uint16x8, ushort, v_uint8x16, uchar, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_RSHR_PACK(v_int16x8, short, v_int8x16, schar, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_RSHR_PACK(v_uint32x4, unsigned, v_uint16x8, ushort, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_RSHR_PACK(v_int32x4, int, v_int16x8, short, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_RSHR_PACK(v_uint64x2, uint64, v_uint32x4, unsigned, pack, static_cast)
-OPENCV_HAL_IMPL_C_RSHR_PACK(v_int64x2, int64, v_int32x4, int, pack, static_cast)
-OPENCV_HAL_IMPL_C_RSHR_PACK(v_int16x8, short, v_uint8x16, uchar, pack_u, saturate_cast)
-OPENCV_HAL_IMPL_C_RSHR_PACK(v_int32x4, int, v_uint16x8, ushort, pack_u, saturate_cast)
-
-#define OPENCV_HAL_IMPL_C_PACK_STORE(_Tpvec, _Tp, _Tpnvec, _Tpn, pack_suffix, cast) \
-inline void v_##pack_suffix##_store(_Tpn* ptr, const _Tpvec& a) \
-{ \
-    _Tp p[_Tpvec::nlanes]; \
-    wasm_v128_store(p, a.val); \
-    for( int i = 0; i < _Tpvec::nlanes; i++ ) \
-        ptr[i] = cast<_Tpn>(p[i]); \
+inline void v_pack_store(uchar* ptr, const v_uint16x8& a)
+{
+    v128_t maxval = wasm_i16x8_splat(255);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, wasm_u16x8_gt(a.val, maxval));
+    v128_t r = wasm_v8x16_shuffle(a1, a1, 0,2,4,6,8,10,12,14,0,2,4,6,8,10,12,14);
+    uchar t_ptr[16];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<8; ++i) {
+        ptr[i] = t_ptr[i];
+    }
+}
+inline void v_pack_store(schar* ptr, const v_int16x8& a)
+{
+    v128_t maxval = wasm_i16x8_splat(127);
+    v128_t minval = wasm_i16x8_splat(-128);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, wasm_i16x8_gt(a.val, maxval));
+    v128_t a2 = wasm_v128_bitselect(minval, a1, wasm_i16x8_lt(a1, minval));
+    v128_t r = wasm_v8x16_shuffle(a2, a2, 0,2,4,6,8,10,12,14,0,2,4,6,8,10,12,14);
+    schar t_ptr[16];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<8; ++i) {
+        ptr[i] = t_ptr[i];
+    }
+}
+inline void v_pack_store(ushort* ptr, const v_uint32x4& a)
+{
+    v128_t maxval = wasm_i32x4_splat(65535);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, wasm_u32x4_gt(a.val, maxval));
+    v128_t r = wasm_v8x16_shuffle(a1, a1, 0,1,4,5,8,9,12,13,0,1,4,5,8,9,12,13);
+    ushort t_ptr[8];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<4; ++i) {
+        ptr[i] = t_ptr[i];
+    }
+}
+inline void v_pack_store(short* ptr, const v_int32x4& a)
+{
+    v128_t maxval = wasm_i32x4_splat(32767);
+    v128_t minval = wasm_i32x4_splat(-32768);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, wasm_i32x4_gt(a.val, maxval));
+    v128_t a2 = wasm_v128_bitselect(minval, a1, wasm_i32x4_lt(a1, minval));
+    v128_t r = wasm_v8x16_shuffle(a2, a2, 0,1,4,5,8,9,12,13,0,1,4,5,8,9,12,13);
+    short t_ptr[8];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<4; ++i) {
+        ptr[i] = t_ptr[i];
+    }
+}
+inline void v_pack_store(unsigned* ptr, const v_uint64x2& a)
+{
+    v128_t r = wasm_v8x16_shuffle(a.val, a.val, 0,1,2,3,8,9,10,11,0,1,2,3,8,9,10,11);
+    unsigned t_ptr[4];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<2; ++i) {
+        ptr[i] = t_ptr[i];
+    }
+}
+inline void v_pack_store(int* ptr, const v_int64x2& a)
+{
+    v128_t r = wasm_v8x16_shuffle(a.val, a.val, 0,1,2,3,8,9,10,11,0,1,2,3,8,9,10,11);
+    int t_ptr[4];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<2; ++i) {
+        ptr[i] = t_ptr[i];
+    }
+}
+inline void v_pack_u_store(uchar* ptr, const v_int16x8& a)
+{
+    v128_t maxval = wasm_i16x8_splat(255);
+    v128_t minval = wasm_i16x8_splat(0);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, wasm_i16x8_gt(a.val, maxval));
+    v128_t a2 = wasm_v128_bitselect(minval, a1, wasm_i16x8_lt(a1, minval));
+    v128_t r = wasm_v8x16_shuffle(a2, a2, 0,2,4,6,8,10,12,14,0,2,4,6,8,10,12,14);
+    uchar t_ptr[16];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<8; ++i) {
+        ptr[i] = t_ptr[i];
+    }
+}
+inline void v_pack_u_store(ushort* ptr, const v_int32x4& a)
+{
+    v128_t maxval = wasm_i32x4_splat(65535);
+    v128_t minval = wasm_i32x4_splat(0);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, wasm_i32x4_gt(a.val, maxval));
+    v128_t a2 = wasm_v128_bitselect(minval, a1, wasm_i32x4_lt(a1, minval));
+    v128_t r = wasm_v8x16_shuffle(a2, a2, 0,1,4,5,8,9,12,13,0,1,4,5,8,9,12,13);
+    ushort t_ptr[8];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<4; ++i) {
+        ptr[i] = t_ptr[i];
+    }
 }
 
-OPENCV_HAL_IMPL_C_PACK_STORE(v_uint16x8, ushort, v_uint8x16, uchar, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_PACK_STORE(v_int16x8, short, v_int8x16, schar, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_PACK_STORE(v_uint32x4, unsigned, v_uint16x8, ushort, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_PACK_STORE(v_int32x4, int, v_int16x8, short, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_PACK_STORE(v_uint64x2, uint64, v_uint32x4, unsigned, pack, static_cast)
-OPENCV_HAL_IMPL_C_PACK_STORE(v_int64x2, int64, v_int32x4, int, pack, static_cast)
-OPENCV_HAL_IMPL_C_PACK_STORE(v_int16x8, short, v_uint8x16, uchar, pack_u, saturate_cast)
-OPENCV_HAL_IMPL_C_PACK_STORE(v_int32x4, int, v_uint16x8, ushort, pack_u, saturate_cast)
-
-#define OPENCV_HAL_IMPL_C_RSHR_PACK_STORE(_Tpvec, _Tp, _Tpnvec, _Tpn, pack_suffix, cast) \
-template<int n> inline void v_rshr_##pack_suffix##_store(_Tpn* ptr, const _Tpvec& a) \
-{ \
-    _Tp p[_Tpvec::nlanes]; \
-    wasm_v128_store(p, a.val); \
-    for( int i = 0; i < _Tpvec::nlanes; i++ ) \
-        ptr[i] = cast<_Tpn>((p[i] + ((_Tp)1 << (n - 1))) >> n); \
+template<int n>
+inline void v_rshr_pack_store(uchar* ptr, const v_uint16x8& a)
+{
+    v128_t delta = wasm_i16x8_splat((short)(1 << (n-1)));
+    v128_t a1 = wasm_u16x8_shr(wasm_i16x8_add(a.val, delta), n);
+    v128_t maxval = wasm_i16x8_splat(255);
+    v128_t a2 = wasm_v128_bitselect(maxval, a1, wasm_u16x8_gt(a1, maxval));
+    v128_t r = wasm_v8x16_shuffle(a2, a2, 0,2,4,6,8,10,12,14,0,2,4,6,8,10,12,14);
+    uchar t_ptr[16];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<8; ++i) {
+        ptr[i] = t_ptr[i];
+    }
 }
-
-OPENCV_HAL_IMPL_C_RSHR_PACK_STORE(v_uint16x8, ushort, v_uint8x16, uchar, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_RSHR_PACK_STORE(v_int16x8, short, v_int8x16, schar, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_RSHR_PACK_STORE(v_uint32x4, unsigned, v_uint16x8, ushort, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_RSHR_PACK_STORE(v_int32x4, int, v_int16x8, short, pack, saturate_cast)
-OPENCV_HAL_IMPL_C_RSHR_PACK_STORE(v_uint64x2, uint64, v_uint32x4, unsigned, pack, static_cast)
-OPENCV_HAL_IMPL_C_RSHR_PACK_STORE(v_int64x2, int64, v_int32x4, int, pack, static_cast)
-OPENCV_HAL_IMPL_C_RSHR_PACK_STORE(v_int16x8, short, v_uint8x16, uchar, pack_u, saturate_cast)
-OPENCV_HAL_IMPL_C_RSHR_PACK_STORE(v_int32x4, int, v_uint16x8, ushort, pack_u, saturate_cast)
+template<int n>
+inline void v_rshr_pack_store(schar* ptr, const v_int16x8& a)
+{
+    v128_t delta = wasm_i16x8_splat(((short)1 << (n-1)));
+    v128_t a1 = wasm_i16x8_shr(wasm_i16x8_add(a.val, delta), n);
+    v128_t maxval = wasm_i16x8_splat(127);
+    v128_t minval = wasm_i16x8_splat(-128);
+    v128_t a2 = wasm_v128_bitselect(maxval, a1, wasm_i16x8_gt(a1, maxval));
+    v128_t a3 = wasm_v128_bitselect(minval, a2, wasm_i16x8_lt(a1, minval));
+    v128_t r = wasm_v8x16_shuffle(a3, a3, 0,2,4,6,8,10,12,14,0,2,4,6,8,10,12,14);
+    schar t_ptr[16];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<8; ++i) {
+        ptr[i] = t_ptr[i];
+    }
+}
+template<int n>
+inline void v_rshr_pack_store(ushort* ptr, const v_uint32x4& a)
+{
+    v128_t delta = wasm_i32x4_splat(((int)1 << (n-1)));
+    v128_t a1 = wasm_u32x4_shr(wasm_i32x4_add(a.val, delta), n);
+    v128_t maxval = wasm_i32x4_splat(65535);
+    v128_t a2 = wasm_v128_bitselect(maxval, a1, wasm_u32x4_gt(a1, maxval));
+    v128_t r = wasm_v8x16_shuffle(a2, a2, 0,1,4,5,8,9,12,13,0,1,4,5,8,9,12,13);
+    ushort t_ptr[8];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<4; ++i) {
+        ptr[i] = t_ptr[i];
+    }
+}
+template<int n>
+inline void v_rshr_pack_store(short* ptr, const v_int32x4& a)
+{
+    v128_t delta = wasm_i32x4_splat(((int)1 << (n-1)));
+    v128_t a1 = wasm_i32x4_shr(wasm_i32x4_add(a.val, delta), n);
+    v128_t maxval = wasm_i32x4_splat(32767);
+    v128_t minval = wasm_i32x4_splat(-32768);
+    v128_t a2 = wasm_v128_bitselect(maxval, a1, wasm_i32x4_gt(a1, maxval));
+    v128_t a3 = wasm_v128_bitselect(minval, a2, wasm_i32x4_lt(a1, minval));
+    v128_t r = wasm_v8x16_shuffle(a3, a3, 0,1,4,5,8,9,12,13,0,1,4,5,8,9,12,13);
+    short t_ptr[8];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<4; ++i) {
+        ptr[i] = t_ptr[i];
+    }
+}
+template<int n>
+inline void v_rshr_pack_store(unsigned* ptr, const v_uint64x2& a)
+{
+    v128_t delta = wasm_i64x2_splat(((int64)1 << (n-1)));
+    v128_t a1 = wasm_u64x2_shr(wasm_i64x2_add(a.val, delta), n);
+    v128_t r = wasm_v8x16_shuffle(a1, a1, 0,1,2,3,8,9,10,11,0,1,2,3,8,9,10,11);
+    unsigned t_ptr[4];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<2; ++i) {
+        ptr[i] = t_ptr[i];
+    }
+}
+template<int n>
+inline void v_rshr_pack_store(int* ptr, const v_int64x2& a)
+{
+    v128_t delta = wasm_i64x2_splat(((int64)1 << (n-1)));
+    v128_t a1 = wasm_i64x2_shr(wasm_i64x2_add(a.val, delta), n);
+    v128_t r = wasm_v8x16_shuffle(a1, a1, 0,1,2,3,8,9,10,11,0,1,2,3,8,9,10,11);
+    int t_ptr[4];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<2; ++i) {
+        ptr[i] = t_ptr[i];
+    }
+}
+template<int n>
+inline void v_rshr_pack_u_store(uchar* ptr, const v_int16x8& a)
+{
+    v128_t delta = wasm_i16x8_splat(((short)1 << (n-1)));
+    v128_t a1 = wasm_i16x8_shr(wasm_i16x8_add(a.val, delta), n);
+    v128_t maxval = wasm_i16x8_splat(255);
+    v128_t minval = wasm_i16x8_splat(0);
+    v128_t a2 = wasm_v128_bitselect(maxval, a1, wasm_i16x8_gt(a1, maxval));
+    v128_t a3 = wasm_v128_bitselect(minval, a2, wasm_i16x8_lt(a1, minval));
+    v128_t r = wasm_v8x16_shuffle(a3, a3, 0,2,4,6,8,10,12,14,0,2,4,6,8,10,12,14);
+    uchar t_ptr[16];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<8; ++i) {
+        ptr[i] = t_ptr[i];
+    }
+}
+template<int n>
+inline void v_rshr_pack_u_store(ushort* ptr, const v_int32x4& a)
+{
+    v128_t delta = wasm_i32x4_splat(((int)1 << (n-1)));
+    v128_t a1 = wasm_i32x4_shr(wasm_i32x4_add(a.val, delta), n);
+    v128_t maxval = wasm_i32x4_splat(65535);
+    v128_t minval = wasm_i32x4_splat(0);
+    v128_t a2 = wasm_v128_bitselect(maxval, a1, wasm_i32x4_gt(a1, maxval));
+    v128_t a3 = wasm_v128_bitselect(minval, a2, wasm_i32x4_lt(a1, minval));
+    v128_t r = wasm_v8x16_shuffle(a3, a3, 0,1,4,5,8,9,12,13,0,1,4,5,8,9,12,13);
+    ushort t_ptr[8];
+    wasm_v128_store(t_ptr, r);
+    for (int i=0; i<4; ++i) {
+        ptr[i] = t_ptr[i];
+    }
+}
 
 inline v_uint8x16 v_pack_b(const v_uint16x8& a, const v_uint16x8& b)
 {
-    ushort p[16];
-    wasm_v128_store(p, a.val);
-    wasm_v128_store(p+8, b.val);
-    return v_uint8x16(p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],
-                      p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);
+    v128_t maxval = wasm_i16x8_splat(255);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, wasm_u16x8_gt(a.val, maxval));
+    v128_t b1 = wasm_v128_bitselect(maxval, b.val, wasm_u16x8_gt(b.val, maxval));
+    return v_uint8x16(wasm_v8x16_shuffle(a1, b1, 0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30));
 }
 
 inline v_uint8x16 v_pack_b(const v_uint32x4& a, const v_uint32x4& b,
                            const v_uint32x4& c, const v_uint32x4& d)
 {
-    unsigned p[16];
-    wasm_v128_store(p, a.val);
-    wasm_v128_store(p+4, b.val);
-    wasm_v128_store(p+8, c.val);
-    wasm_v128_store(p+12, d.val);
-    return v_uint8x16(p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],
-                      p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);
+    v128_t maxval = wasm_i32x4_splat(255);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, wasm_u32x4_gt(a.val, maxval));
+    v128_t b1 = wasm_v128_bitselect(maxval, b.val, wasm_u32x4_gt(b.val, maxval));
+    v128_t c1 = wasm_v128_bitselect(maxval, c.val, wasm_u32x4_gt(c.val, maxval));
+    v128_t d1 = wasm_v128_bitselect(maxval, d.val, wasm_u32x4_gt(d.val, maxval));
+    v128_t ab = wasm_v8x16_shuffle(a1, b1, 0,4,8,12,16,20,24,28,0,4,8,12,16,20,24,28);
+    v128_t cd = wasm_v8x16_shuffle(c1, d1, 0,4,8,12,16,20,24,28,0,4,8,12,16,20,24,28);
+    return v_uint8x16(wasm_v8x16_shuffle(ab, cd, 0,1,2,3,4,5,6,7,16,17,18,19,20,21,22,23));
 }
 
 inline v_uint8x16 v_pack_b(const v_uint64x2& a, const v_uint64x2& b, const v_uint64x2& c,
                            const v_uint64x2& d, const v_uint64x2& e, const v_uint64x2& f,
                            const v_uint64x2& g, const v_uint64x2& h)
 {
-    uint64 p[16];
-    wasm_v128_store(p, a.val);
-    wasm_v128_store(p+2, b.val);
-    wasm_v128_store(p+4, c.val);
-    wasm_v128_store(p+6, d.val);
-    wasm_v128_store(p+8, e.val);
-    wasm_v128_store(p+10, f.val);
-    wasm_v128_store(p+12, g.val);
-    wasm_v128_store(p+14, h.val);
-    return v_uint8x16(p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],
-                      p[8],p[9],p[10],p[11],p[12],p[13],p[14],p[15]);
+    v128_t maxval = wasm_i32x4_splat(255);
+    v128_t a1 = wasm_v128_bitselect(maxval, a.val, ((__u64x2)(a.val) > (__u64x2)maxval));
+    v128_t b1 = wasm_v128_bitselect(maxval, b.val, ((__u64x2)(b.val) > (__u64x2)maxval));
+    v128_t c1 = wasm_v128_bitselect(maxval, c.val, ((__u64x2)(c.val) > (__u64x2)maxval));
+    v128_t d1 = wasm_v128_bitselect(maxval, d.val, ((__u64x2)(d.val) > (__u64x2)maxval));
+    v128_t e1 = wasm_v128_bitselect(maxval, e.val, ((__u64x2)(e.val) > (__u64x2)maxval));
+    v128_t f1 = wasm_v128_bitselect(maxval, f.val, ((__u64x2)(f.val) > (__u64x2)maxval));
+    v128_t g1 = wasm_v128_bitselect(maxval, g.val, ((__u64x2)(g.val) > (__u64x2)maxval));
+    v128_t h1 = wasm_v128_bitselect(maxval, h.val, ((__u64x2)(h.val) > (__u64x2)maxval));
+    v128_t ab = wasm_v8x16_shuffle(a1, b1, 0,8,16,24,0,8,16,24,0,8,16,24,0,8,16,24);
+    v128_t cd = wasm_v8x16_shuffle(c1, d1, 0,8,16,24,0,8,16,24,0,8,16,24,0,8,16,24);
+    v128_t ef = wasm_v8x16_shuffle(e1, f1, 0,8,16,24,0,8,16,24,0,8,16,24,0,8,16,24);
+    v128_t gh = wasm_v8x16_shuffle(g1, h1, 0,8,16,24,0,8,16,24,0,8,16,24,0,8,16,24);
+    v128_t abcd = wasm_v8x16_shuffle(ab, cd, 0,1,2,3,16,17,18,19,0,1,2,3,16,17,18,19);
+    v128_t efgh = wasm_v8x16_shuffle(ef, gh, 0,1,2,3,16,17,18,19,0,1,2,3,16,17,18,19);
+    return v_uint8x16(wasm_v8x16_shuffle(abcd, efgh, 0,1,2,3,4,5,6,7,16,17,18,19,20,21,22,23));
 }
 
 inline v_float32x4 v_matmul(const v_float32x4& v, const v_float32x4& m0,
@@ -668,16 +960,11 @@ inline void v_mul_expand(const v_uint16x8& a, const v_uint16x8& b,
 inline void v_mul_expand(const v_uint32x4& a, const v_uint32x4& b,
                          v_uint64x2& c, v_uint64x2& d)
 {
-    // v_uint64x2 a0, a1, b0, b1;
-    // v_expand(a, a0, a1);
-    // v_expand(b, b0, b1);
-    unsigned buf[8];
-    wasm_v128_store(buf, a.val);
-    wasm_v128_store(buf+4, b.val);
-    c = v_uint64x2(buf[0]*buf[4], buf[1]*buf[5]);
-    d = v_uint64x2(buf[2]*buf[6], buf[3]*buf[7]);
-    // c.val = wasm_i32x4_mul(a0.val, b0.val);
-    // d.val = wasm_i32x4_mul(a1.val, b1.val);
+    v_uint64x2 a0, a1, b0, b1;
+    v_expand(a, a0, a1);
+    v_expand(b, b0, b1);
+    c.val = ((__u64x2)(a0.val) * (__u64x2)(b0.val));
+    d.val = ((__u64x2)(a1.val) * (__u64x2)(b1.val));
 }
 
 inline v_int16x8 v_mul_hi(const v_int16x8& a, const v_int16x8& b)
