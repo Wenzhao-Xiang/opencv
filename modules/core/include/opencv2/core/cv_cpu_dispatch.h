@@ -154,6 +154,7 @@
 
 #if defined(EMSCRIPTEN)
 #  define CV_WASM_SIMD 1
+#  define __wasm_unimplemented_simd128__
 #  include <wasm_simd128.h>
 #endif
 

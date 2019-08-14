@@ -45,16 +45,12 @@
 #ifndef OPENCV_HAL_WASM_HPP
 #define OPENCV_HAL_WASM_HPP
 
-#define __wasm_unimplemented_simd128__
-
 #include <algorithm>
-#include <wasm_simd128.h>
 #include "opencv2/core/utility.hpp"
-#include <iostream>
 
 #define CV_SIMD128 1
-#define CV_SIMD128_64F 1
-#define CV_SIMD128_FP16 1  // no native operations with FP16 type.
+#define CV_SIMD128_64F 0
+#define CV_SIMD128_FP16 0  // no native operations with FP16 type.
 
 namespace cv
 {
