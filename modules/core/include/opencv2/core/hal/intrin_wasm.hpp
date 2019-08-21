@@ -3970,56 +3970,27 @@ inline scalartype v_reduce_sum(const _Tpvec& a) \
     return (scalartype)wasm_##esuffix##_extract_lane(val, 0); \
 }
 
-#define OPENCV_HAL_IMPL_WASM_REDUCE_OP_8_SUM(_Tpvec, scalartype, regtype, suffix, esuffix) \
-inline scalartype v_reduce_sum(const _Tpvec& a) \
-{ \
-    regtype val = a.val; \
-    val = wasm_##suffix##_add(val, wasm_v8x16_shuffle(val, val, 8,9,10,11,12,13,14,15,0,1,2,3,4,5,6,7)); \
-    val = wasm_##suffix##_add(val, wasm_v8x16_shuffle(val, val, 4,5,6,7,8,9,10,11,12,13,14,15,0,1,2,3)); \
-    val = wasm_##suffix##_add(val, wasm_v8x16_shuffle(val, val, 2,3,4,5,6,7,8,9,10,11,12,13,14,15,0,1)); \
-    return (scalartype)wasm_##esuffix##_extract_lane(val, 0); \
-}
-
-#define OPENCV_HAL_IMPL_WASM_REDUCE_OP_16_SUM(_Tpvec, scalartype, regtype, suffix, esuffix) \
-inline scalartype v_reduce_sum(const _Tpvec& a) \
-{ \
-    regtype val = a.val; \
-    val = wasm_##suffix##_add(val, wasm_v8x16_shuffle(val, val, 8,9,10,11,12,13,14,15,0,1,2,3,4,5,6,7)); \
-    val = wasm_##suffix##_add(val, wasm_v8x16_shuffle(val, val, 4,5,6,7,8,9,10,11,12,13,14,15,0,1,2,3)); \
-    val = wasm_##suffix##_add(val, wasm_v8x16_shuffle(val, val, 2,3,4,5,6,7,8,9,10,11,12,13,14,15,0,1)); \
-    val = wasm_##suffix##_add(val, wasm_v8x16_shuffle(val, val, 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15)); \
-    return (scalartype)wasm_##esuffix##_extract_lane(val, 0); \
-}
-
 OPENCV_HAL_IMPL_WASM_REDUCE_OP_4_SUM(v_uint32x4, unsigned, v128_t, i32x4, i32x4)
 OPENCV_HAL_IMPL_WASM_REDUCE_OP_4_SUM(v_int32x4, int, v128_t, i32x4, i32x4)
 OPENCV_HAL_IMPL_WASM_REDUCE_OP_4_SUM(v_float32x4, float, v128_t, f32x4, f32x4)
 
-OPENCV_HAL_IMPL_WASM_REDUCE_OP_8_SUM(v_uint16x8, ushort, v128_t, i16x8, i16x8)
-OPENCV_HAL_IMPL_WASM_REDUCE_OP_8_SUM(v_int16x8, short, v128_t, i16x8, i16x8)
+// To do: Optimize v_reduce_sum with wasm intrin. 
+//        Now use fallback implementation as there is no widening op in wasm intrin.
 
-OPENCV_HAL_IMPL_WASM_REDUCE_OP_16_SUM(v_uint8x16, uchar, v128_t, i8x16, u8x16)
-OPENCV_HAL_IMPL_WASM_REDUCE_OP_16_SUM(v_int8x16, schar, v128_t, i8x16, i8x16)
+#define OPENCV_HAL_IMPL_FALLBACK_REDUCE_OP_SUM(_Tpvec, scalartype) \
+inline scalartype v_reduce_sum(const _Tpvec& a) \
+{ \
+    fallback::_Tpvec a_(a); \
+    return fallback::v_reduce_sum(a_); \
+}
 
-
-inline uint64 v_reduce_sum(const v_uint64x2& a)
-{
-    uint64 idx[2];
-    v_store(idx, a);
-    return idx[0] + idx[1];
-}
-inline int64 v_reduce_sum(const v_int64x2& a)
-{
-    int64 idx[2];
-    v_store(idx, a);
-    return idx[0] + idx[1];
-}
-inline double v_reduce_sum(const v_float64x2& a)
-{
-    double idx[2];
-    v_store(idx, a);
-    return idx[0] + idx[1];
-}
+OPENCV_HAL_IMPL_FALLBACK_REDUCE_OP_SUM(v_uint8x16, unsigned)
+OPENCV_HAL_IMPL_FALLBACK_REDUCE_OP_SUM(v_int8x16, int)
+OPENCV_HAL_IMPL_FALLBACK_REDUCE_OP_SUM(v_uint16x8, unsigned)
+OPENCV_HAL_IMPL_FALLBACK_REDUCE_OP_SUM(v_int16x8, int)
+OPENCV_HAL_IMPL_FALLBACK_REDUCE_OP_SUM(v_uint64x2, uint64)
+OPENCV_HAL_IMPL_FALLBACK_REDUCE_OP_SUM(v_int64x2, int64)
+OPENCV_HAL_IMPL_FALLBACK_REDUCE_OP_SUM(v_float64x2, double)
 
 inline v_float32x4 v_reduce_sum4(const v_float32x4& a, const v_float32x4& b,
                                  const v_float32x4& c, const v_float32x4& d)
@@ -4125,10 +4096,8 @@ inline v_uint32x4 v_popcount(const v_uint32x4& a)
 }
 inline v_uint64x2 v_popcount(const v_uint64x2& a)
 {
-    v_uint16x8 l, h;
-    v_expand(v_popcount(v_reinterpret_as_u8(a)), l ,h);
-    ushort sum[] = {v_reduce_sum(l),0,0,0, v_reduce_sum(h),0,0,0};
-    return v_uint64x2(wasm_v128_load(sum));
+    fallback::v_uint64x2 a_(a);
+    return fallback::v_popcount(a_);
 }
 inline v_uint8x16 v_popcount(const v_int8x16& a)
 { return v_popcount(v_reinterpret_as_u8(a)); }
@@ -4182,10 +4151,21 @@ inline bool v_check_any(const v_float64x2& a)
 #endif
 }
 
+inline int v_scan_forward(const v_int8x16& a) { return trailingZeros32(v_signmask(v_reinterpret_as_s8(a))); }
+inline int v_scan_forward(const v_uint8x16& a) { return trailingZeros32(v_signmask(v_reinterpret_as_s8(a))); }
+inline int v_scan_forward(const v_int16x8& a) { return trailingZeros32(v_signmask(v_reinterpret_as_s8(a))) / 2; }
+inline int v_scan_forward(const v_uint16x8& a) { return trailingZeros32(v_signmask(v_reinterpret_as_s8(a))) / 2; }
+inline int v_scan_forward(const v_int32x4& a) { return trailingZeros32(v_signmask(v_reinterpret_as_s8(a))) / 4; }
+inline int v_scan_forward(const v_uint32x4& a) { return trailingZeros32(v_signmask(v_reinterpret_as_s8(a))) / 4; }
+inline int v_scan_forward(const v_float32x4& a) { return trailingZeros32(v_signmask(v_reinterpret_as_s8(a))) / 4; }
+inline int v_scan_forward(const v_int64x2& a) { return trailingZeros32(v_signmask(v_reinterpret_as_s8(a))) / 8; }
+inline int v_scan_forward(const v_uint64x2& a) { return trailingZeros32(v_signmask(v_reinterpret_as_s8(a))) / 8; }
+inline int v_scan_forward(const v_float64x2& a) { return trailingZeros32(v_signmask(v_reinterpret_as_s8(a))) / 8; }
+
 #define OPENCV_HAL_IMPL_WASM_SELECT(_Tpvec) \
 inline _Tpvec v_select(const _Tpvec& mask, const _Tpvec& a, const _Tpvec& b) \
 { \
-    return _Tpvec(wasm_v128_xor(b.val, wasm_v128_and(wasm_v128_xor(b.val, a.val), mask.val))); \
+    return _Tpvec(wasm_v128_bitselect(a.val, b.val, mask.val)); \
 }
 
 OPENCV_HAL_IMPL_WASM_SELECT(v_uint8x16)
