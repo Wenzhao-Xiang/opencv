@@ -1715,31 +1715,30 @@ static v128_t wasm_unpackhi_i64x2(v128_t a, v128_t b) {
 // 8 >> 16
 inline v128_t v128_cvtu8x16_i16x8(const v128_t& a)
 {
-    const v128_t z = wasm_i8x16_splat(0);
-    return wasm_unpacklo_i8x16(a, z);
+    return wasm_i16x8_widen_low_u8x16(a);
 }
 inline v128_t v128_cvti8x16_i16x8(const v128_t& a)
-{ return wasm_i16x8_shr(wasm_unpacklo_i8x16(a, a), 8); }
+{
+    return wasm_i16x8_widen_low_i8x16(a);
+}
 // 8 >> 32
 inline v128_t v128_cvtu8x16_i32x4(const v128_t& a)
 {
-    const v128_t z = wasm_i8x16_splat(0);
-    return wasm_unpacklo_i16x8(wasm_unpacklo_i8x16(a, z), z);
+    return wasm_i32x4_widen_low_i16x8(wasm_i16x8_widen_low_u8x16(a));
 }
 inline v128_t v128_cvti8x16_i32x4(const v128_t& a)
 {
-    v128_t r = wasm_unpacklo_i8x16(a, a);
-    r = wasm_unpacklo_i8x16(r, r);
-    return wasm_i32x4_shr(r, 24);
+    return wasm_i32x4_widen_low_i16x8(wasm_i16x8_widen_low_i8x16(a));
 }
 // 16 >> 32
 inline v128_t v128_cvtu16x8_i32x4(const v128_t& a)
 {
-    const v128_t z = wasm_i8x16_splat(0);
-    return wasm_unpacklo_i16x8(a, z);
+    return wasm_i32x4_widen_low_u16x8(a);
 }
 inline v128_t v128_cvti16x8_i32x4(const v128_t& a)
-{ return wasm_i32x4_shr(wasm_unpacklo_i16x8(a, a), 16); }
+{
+    return wasm_i32x4_widen_low_i16x8(a);
+}
 // 32 >> 64
 inline v128_t v128_cvtu32x4_i64x2(const v128_t& a)
 {
@@ -1747,24 +1746,28 @@ inline v128_t v128_cvtu32x4_i64x2(const v128_t& a)
     return wasm_unpacklo_i32x4(a, z);
 }
 inline v128_t v128_cvti32x4_i64x2(const v128_t& a)
-{ return wasm_unpacklo_i32x4(a, wasm_i32x4_shr(a, 31)); }
+{
+    return wasm_unpacklo_i32x4(a, wasm_i32x4_shr(a, 31));
+}
 
 // 16 << 8
 inline v128_t v128_cvtu8x16_i16x8_high(const v128_t& a)
 {
-    const v128_t z = wasm_i8x16_splat(0);
-    return wasm_unpackhi_i8x16(a, z);
+    return wasm_i16x8_widen_high_u8x16(a);
 }
 inline v128_t v128_cvti8x16_i16x8_high(const v128_t& a)
-{ return wasm_i16x8_shr(wasm_unpackhi_i8x16(a, a), 8); }
+{
+    return wasm_i16x8_widen_high_i8x16(a);
+}
 // 32 << 16
 inline v128_t v128_cvtu16x8_i32x4_high(const v128_t& a)
 {
-    const v128_t z = wasm_i8x16_splat(0);
-    return wasm_unpackhi_i16x8(a, z);
+    return wasm_i32x4_widen_high_u16x8(a);
 }
 inline v128_t v128_cvti16x8_i32x4_high(const v128_t& a)
-{ return wasm_i32x4_shr(wasm_unpackhi_i16x8(a, a), 16); }
+{
+    return wasm_i32x4_widen_high_i16x8(a);
+}
 // 64 << 32
 inline v128_t v128_cvtu32x4_i64x2_high(const v128_t& a)
 {
@@ -1772,7 +1775,9 @@ inline v128_t v128_cvtu32x4_i64x2_high(const v128_t& a)
     return wasm_unpackhi_i32x4(a, z);
 }
 inline v128_t v128_cvti32x4_i64x2_high(const v128_t& a)
-{ return wasm_unpackhi_i32x4(a, wasm_i32x4_shr(a, 31)); }
+{
+    return wasm_unpackhi_i32x4(a, wasm_i32x4_shr(a, 31));
+}
 
 #define OPENCV_HAL_IMPL_WASM_INITVEC(_Tpvec, _Tp, suffix, zsuffix, _Tps) \
 inline _Tpvec v_setzero_##suffix() { return _Tpvec(wasm_##zsuffix##_splat((_Tps)0)); } \
@@ -2412,34 +2417,34 @@ inline void v_mul_expand(const v_uint32x4& a, const v_uint32x4& b,
 
 inline v_int16x8 v_mul_hi(const v_int16x8& a, const v_int16x8& b)
 {
-    v_int32x4 a0, a1, b0, b1;
-    v_expand(a, a0, a1);
-    v_expand(b, b0, b1);
-    v128_t c = wasm_i32x4_mul(a0.val, b0.val);
-    v128_t d = wasm_i32x4_mul(a1.val, b1.val);
-    return v_int16x8(wasm_v8x16_shuffle(c, d, 2,3,6,7,10,11,14,15,18,19,22,23,26,27,30,31));
+    v128_t a_low = wasm_i32x4_widen_low_i16x8(a.val);
+    v128_t a_high = wasm_i32x4_widen_high_i16x8(a.val);
+    v128_t b_low = wasm_i32x4_widen_low_i16x8(b.val);
+    v128_t b_high = wasm_i32x4_widen_high_i16x8(b.val);
+    v128_t ab_low = wasm_i32x4_mul(a_low, b_low);
+    v128_t ab_high = wasm_i32x4_mul(a_high, b_high);
+    return v_int16x8(wasm_i16x8_narrow_i32x4(wasm_i32x4_shr(ab_low, 16), wasm_i32x4_shr(ab_high, 16)));
 }
 inline v_uint16x8 v_mul_hi(const v_uint16x8& a, const v_uint16x8& b)
 {
-    v_uint32x4 a0, a1, b0, b1;
-    v_expand(a, a0, a1);
-    v_expand(b, b0, b1);
-    v128_t c = wasm_i32x4_mul(a0.val, b0.val);
-    v128_t d = wasm_i32x4_mul(a1.val, b1.val);
-    return v_uint16x8(wasm_v8x16_shuffle(c, d, 2,3,6,7,10,11,14,15,18,19,22,23,26,27,30,31));
+    v128_t a_low = wasm_i32x4_widen_low_u16x8(a.val);
+    v128_t a_high = wasm_i32x4_widen_high_u16x8(a.val);
+    v128_t b_low = wasm_i32x4_widen_low_u16x8(b.val);
+    v128_t b_high = wasm_i32x4_widen_high_u16x8(b.val);
+    v128_t ab_low = wasm_i32x4_mul(a_low, b_low);
+    v128_t ab_high = wasm_i32x4_mul(a_high, b_high);
+    return v_uint16x8(wasm_u16x8_narrow_i32x4(wasm_u32x4_shr(ab_low, 16), wasm_u32x4_shr(ab_high, 16)));
 }
 
 //////// Dot Product ////////
 
 inline v_int32x4 v_dotprod(const v_int16x8& a, const v_int16x8& b)
 {
-    v128_t a0 = wasm_i32x4_shr(wasm_i32x4_shl(a.val, 16), 16);
-    v128_t a1 = wasm_i32x4_shr(a.val, 16);
-    v128_t b0 = wasm_i32x4_shr(wasm_i32x4_shl(b.val, 16), 16);
-    v128_t b1 = wasm_i32x4_shr(b.val, 16);
-    v128_t c = wasm_i32x4_mul(a0, b0);
-    v128_t d = wasm_i32x4_mul(a1, b1);
-    return v_int32x4(wasm_i32x4_add(c, d));
+    v128_t c = wasm_i32x4_mul(wasm_i32x4_widen_low_i16x8(a.val), wasm_i32x4_widen_low_i16x8(b.val));
+    v128_t d = wasm_i32x4_mul(wasm_i32x4_widen_high_i16x8(a.val), wasm_i32x4_widen_high_i16x8(b.val));
+    v128_t e = wasm_v8x16_shuffle(c, d, 0,1,2,3,8,9,10,11,16,17,18,19,24,25,26,27);
+    v128_t f = wasm_v8x16_shuffle(c, d, 4,5,6,7,12,13,14,15,20,21,22,23,28,29,30,31);
+    return v_int32x4(wasm_i32x4_add(e, f));
 }
 
 inline v_int32x4 v_dotprod(const v_int16x8& a, const v_int16x8& b, const v_int32x4& c)
@@ -3400,25 +3405,25 @@ inline _Tpvec v_extract(const _Tpvec& a, const _Tpvec& b)
 inline v_int32x4 v_round(const v_float32x4& a)
 {
     v128_t h = wasm_f32x4_splat(0.5);
-    return v_int32x4(wasm_trunc_saturate_i32x4_f32x4(wasm_f32x4_add(a.val, h)));
+    return v_int32x4(wasm_i32x4_trunc_saturate_f32x4(wasm_f32x4_add(a.val, h)));
 }
 
 inline v_int32x4 v_floor(const v_float32x4& a)
 {
-    v128_t a1 = wasm_trunc_saturate_i32x4_f32x4(a.val);
-    v128_t mask = wasm_f32x4_lt(a.val, wasm_convert_f32x4_i32x4(a1));
+    v128_t a1 = wasm_i32x4_trunc_saturate_f32x4(a.val);
+    v128_t mask = wasm_f32x4_lt(a.val, wasm_f32x4_convert_i32x4(a1));
     return v_int32x4(wasm_i32x4_add(a1, mask));
 }
 
 inline v_int32x4 v_ceil(const v_float32x4& a)
 {
-    v128_t a1 = wasm_trunc_saturate_i32x4_f32x4(a.val);
-    v128_t mask = wasm_f32x4_gt(a.val, wasm_convert_f32x4_i32x4(a1));
+    v128_t a1 = wasm_i32x4_trunc_saturate_f32x4(a.val);
+    v128_t mask = wasm_f32x4_gt(a.val, wasm_f32x4_convert_u32x4(a1));
     return v_int32x4(wasm_i32x4_sub(a1, mask));
 }
 
 inline v_int32x4 v_trunc(const v_float32x4& a)
-{ return v_int32x4(wasm_trunc_saturate_i32x4_f32x4(a.val)); }
+{ return v_int32x4(wasm_i32x4_trunc_saturate_f32x4(a.val)); }
 
 #define OPENCV_HAL_IMPL_WASM_MATH_FUNC(func, cfunc, _Tpvec, _Tpnvec, _Tp, _Tpn) \
 inline _Tpnvec func(const _Tpvec& a) \
@@ -3924,7 +3929,7 @@ OPENCV_HAL_IMPL_WASM_LOADSTORE_INTERLEAVE(v_float64x2, double, f64, v_uint64x2, 
 
 inline v_float32x4 v_cvt_f32(const v_int32x4& a)
 {
-    return v_float32x4(wasm_convert_f32x4_i32x4(a.val));
+    return v_float32x4(wasm_f32x4_convert_i32x4(a.val));
 }
 
 inline v_float32x4 v_cvt_f32(const v_float64x2& a)
@@ -3943,7 +3948,7 @@ inline v_float64x2 v_cvt_f64(const v_int32x4& a)
 {
 #ifdef __wasm_unimplemented_simd128__
     v128_t p = v128_cvti32x4_i64x2(a.val);
-    return v_float64x2(wasm_convert_f64x2_i64x2(p));
+    return v_float64x2(wasm_f64x2_convert_i64x2(p));
 #else
     fallback::v_int32x4 a_(a);
     return fallback::v_cvt_f64(a_);
@@ -3954,7 +3959,7 @@ inline v_float64x2 v_cvt_f64_high(const v_int32x4& a)
 {
 #ifdef __wasm_unimplemented_simd128__
     v128_t p = v128_cvti32x4_i64x2_high(a.val);
-    return v_float64x2(wasm_convert_f64x2_i64x2(p));
+    return v_float64x2(wasm_f64x2_convert_i64x2(p));
 #else
     fallback::v_int32x4 a_(a);
     return fallback::v_cvt_f64_high(a_);
